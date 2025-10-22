@@ -1,548 +1,477 @@
 /**
- * Checkbox Plus
+ * Checkbox Plus Prompt for @inquirer/prompts
+ * Production-ready implementation with improved error handling and performance
  *
  * @author Mohammad Fares <faressoft.com@gmail.com>
+ * @author Behnam (fork maintainer) <@behnamazimi>
  */
 
-'use strict';
+import {
+  createPrompt,
+  useState,
+  useKeypress,
+  usePrefix,
+  usePagination,
+  useMemo,
+  useEffect,
+  makeTheme,
+  isUpKey,
+  isDownKey,
+  isSpaceKey,
+  isEnterKey,
+  ValidationError,
+  Separator,
+} from '@inquirer/core';
+import { cursorHide } from '@inquirer/ansi';
+import colors from 'yoctocolors-cjs';
+import figures from '@inquirer/figures';
+import pkg from 'lodash';
+const { isEqual } = pkg;
 
-var _ = require('lodash');
-var chalk = require('chalk');
-var { map, takeUntil } = require('rxjs/operators');
-var cliCursor = require('cli-cursor');
-var figures = require('figures');
-var Base = require('inquirer/lib/prompts/base');
-var Choices = require('inquirer/lib/objects/choices');
-var observe = require('inquirer/lib/utils/events');
-var Paginator = require('inquirer/lib/utils/paginator');
+// Constants
+const DEFAULT_PAGE_SIZE = 7;
+const MAX_SEARCH_LENGTH = 100;
 
-/**
- * CheckboxPlusPrompt
- */
-class CheckboxPlusPrompt extends Base {
+// Theme configuration
+const checkboxPlusTheme = {
+  icon: {
+    checked: colors.green(figures.radioOn),
+    unchecked: figures.radioOff,
+    disabled: colors.dim(figures.radioOff),
+    cursor: figures.pointer,
+  },
+  style: {
+    disabledChoice: (text) => colors.dim(text),
+    renderSelectedChoices: (selectedChoices) => selectedChoices.map((choice) => choice.short).join(', '),
+    description: (text) => colors.cyan(text),
+    keysHelpTip: (keys) => keys
+      .map(([key, action]) => `${colors.bold(key)} ${colors.dim(action)}`)
+      .join(colors.dim(' • ')),
+    highlight: (text) => colors.gray(text),
+    searching: (text) => colors.cyan(text),
+    searchHint: (text) => colors.dim(colors.cyan(text)),
+    noResults: (text) => colors.yellow(text),
+    error: (text) => colors.red(text),
+    activeItem: (text) => colors.blue(text),
+  },
+  helpMode: 'always',
+  keybindings: [],
+};
 
-  /**
-   * Initialize the prompt
-   *
-   * @param  {Object} questions
-   * @param  {Object} rl
-   * @param  {Object} answers
-   */
-  constructor(questions, rl, answers) {
+// Utility functions
+const validateSearchInput = (input) => {
+  if (typeof input !== 'string') return false;
+  if (input.length > MAX_SEARCH_LENGTH) return false;
+  return /^[A-Za-z0-9.\-_]*$/.test(input);
+};
 
-    super(questions, rl, answers);
-
-    // Default value for the highlight option
-    if (typeof this.opt.highlight == 'undefined') {
-      this.opt.highlight = false;
-    }
-
-    // Default value for the searchable option
-    if (typeof this.opt.searchable == 'undefined') {
-      this.opt.searchable = false;
-    }
-
-    // Default value for the default option
-    if (typeof this.opt.default == 'undefined') {
-      this.opt.default = null;
-    }
-
-    // Doesn't have source option
-    if (!this.opt.source) {
-      this.throwParamError('source');
-    }
-
-    // Init
-    this.pointer = 0;
-    this.firstSourceLoading = true;
-    this.choices = new Choices([], answers);
-    this.checkedChoices = [];
-    this.value = [];
-    this.lastQuery = null;
-    this.searching = false;
-    this.lastSourcePromise = null;
-    this.default = this.opt.default;
-    this.opt.default = null;
-
-    this.paginator = new Paginator(this.screen);
-
+const createErrorHandler = (setError, setLoading, enableLogging = true) => (error) => {
+  const message = error?.message || 'An unexpected error occurred';
+  setError(message);
+  setLoading(false);
+  if (enableLogging) {
+    console.error('[checkbox-plus] Error:', error);
   }
+};
 
-  /**
-   * Start the Inquiry session
-   *
-   * @param  {Function} callback callback when prompt is done
-   * @return {this}
-   */
-  _run(callback) {
-
-    var self = this;
-
-    this.done = callback;
-
-    this.executeSource().then(function(result) {
-
-      var events = observe(self.rl);
-
-      var validation = self.handleSubmitEvents(
-        events.line.pipe(map(self.getCurrentValue.bind(self)))
-      );
-      validation.success.forEach(self.onEnd.bind(self));
-      validation.error.forEach(self.onError.bind(self));
-
-      events.normalizedUpKey
-        .pipe(takeUntil(validation.success))
-        .forEach(self.onUpKey.bind(self));
-      events.normalizedDownKey
-        .pipe(takeUntil(validation.success))
-        .forEach(self.onDownKey.bind(self));
-      events.keypress
-        .pipe(takeUntil(validation.success))
-        .forEach(self.onKeypress.bind(self));
-      events.spaceKey
-        .pipe(takeUntil(validation.success))
-        .forEach(self.onSpaceKey.bind(self));
-
-      // If the search is enabled
-      if (!self.opt.searchable) {
-
-        events.numberKey
-          .pipe(takeUntil(validation.success))
-          .forEach(self.onNumberKey.bind(self));
-        events.aKey
-          .pipe(takeUntil(validation.success))
-          .forEach(self.onAllKey.bind(self));
-        events.iKey
-          .pipe(takeUntil(validation.success))
-          .forEach(self.onInverseKey.bind(self));
-
-      } else {
-        events.keypress
-          .pipe(takeUntil(validation.success))
-          .forEach(self.onKeypress.bind(self));
-      }
-
-      if (self.rl.line) {
-        self.onKeypress();
-      }
-
-      // Init the prompt
-      cliCursor.hide();
-      self.render();
-
-    });
-
-    return this;
-
-  }
-
-  /**
-   * Execute the source function to get the choices and render them
-   */
-  executeSource() {
-
-    var self = this;
-    var sourcePromise = null;
-
-    // Remove spaces
-    this.rl.line = _.trim(this.rl.line);
-
-    // Same last search query that already loaded
-    if (this.rl.line === this.lastQuery) {
-      return;
-    }
-
-    // If the search is enabled
-    if (this.opt.searchable) {
-      sourcePromise = this.opt.source(this.answers, this.rl.line);
-    } else {
-      sourcePromise = this.opt.source(this.answers, null);
-    }
-
-    this.lastQuery = this.rl.line;
-    this.lastSourcePromise = sourcePromise;
-    this.searching = true;
-
-    sourcePromise.then(function(choices) {
-
-      // Is not the last issued promise
-      if (self.lastSourcePromise !== sourcePromise) {
-        return;
-      }
-
-      // Reset the searching status
-      self.searching = false;
-
-      // Save the new choices
-      self.choices = new Choices(choices, self.answers);
-
-      // Foreach choice
-      self.choices.forEach(function(choice) {
-
-        // Is the current choice included in the current checked choices
-        if (_.findIndex(self.value, _.isEqual.bind(null, choice.value)) != -1) {
-          self.toggleChoice(choice, true);
-        } else {
-          self.toggleChoice(choice, false);
-        }
-
-        // The default is not applied yet
-        if (self.default) {
-
-          // Is the current choice included in the default values
-          if (_.findIndex(self.default, _.isEqual.bind(null, choice.value)) != -1) {
-            self.toggleChoice(choice, true);
-          }
-
-        }
-
-      });
-
-      // Reset the pointer to select the first choice
-      self.pointer = 0;
-      self.render();
-      self.default = null;
-      self.firstSourceLoading = false;
-
-
-    });
-
-    return sourcePromise;
-
-  }
-
-  /**
-   * Render the prompt
-   *
-   * @param  {Object} error
-   */
-  render(error) {
-
-    // Render question
-    var message = this.getQuestion();
-    var bottomContent = '';
-
-    // Answered
-    if (this.status === 'answered') {
-
-      message += chalk.cyan(this.selection.join(', '));
-      return this.screen.render(message, bottomContent);
-
-    }
-
-    // No search query is entered before
-    if (this.firstSourceLoading) {
-
-      // If the search is enabled
-      if (this.opt.searchable) {
-
-        message +=
-          '(Press ' +
-          chalk.cyan.bold('<space>') +
-          ' to select, ' +
-          'or type anything to filter the list)';
-
-      } else {
-
-        message +=
-          '(Press ' +
-          chalk.cyan.bold('<space>') +
-          ' to select, ' +
-          chalk.cyan.bold('<a>') +
-          ' to toggle all, ' +
-          chalk.cyan.bold('<i>') +
-          ' to invert selection)';
-
-      }
-
-    }
-
-    // If the search is enabled
-    if (this.opt.searchable) {
-
-      // Print the current search query
-      message += this.rl.line;
-
-    }
-
-    // Searching mode
-    if (this.searching) {
-
-      message += '\n  ' + chalk.cyan('Searching...');
-
-    // No choices
-    } else if (!this.choices.length) {
-
-      message += '\n  ' + chalk.yellow('No results...');
-
-    // Has choices
-    } else {
-
-      var choicesStr = this.renderChoices(this.choices, this.pointer);
-
-      var indexPosition = this.choices.indexOf(
-        this.choices.getChoice(this.pointer)
-      );
-
-      message += '\n' + this.paginator.paginate(choicesStr, indexPosition, this.opt.pageSize);
-
-    }
-
-    if (error) {
-      bottomContent = chalk.red('>> ') + error;
-    }
-
-    this.screen.render(message, bottomContent);
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press `Enter` key
-   *
-   * @param {Object} state
-   */
-  onEnd(state) {
-
-    this.status = 'answered';
-
-    // Rerender prompt (and clean subline error)
-    this.render();
-
-    this.screen.done();
-    cliCursor.show();
-    this.done(state.value);
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When something wrong happen
-   *
-   * @param {Object} state
-   */
-  onError(state) {
-    this.render(state.isValid);
-  }
-
-  /**
-   * Get the current values of the selected choices
-   *
-   * @return {Array}
-   */
-  getCurrentValue() {
-
-    this.selection = _.map(this.checkedChoices, 'short');
-    return _.map(this.checkedChoices, 'value');
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press `Up` key
-   */
-  onUpKey() {
-
-    var len = this.choices.realLength;
-    this.pointer = this.pointer > 0 ? this.pointer - 1 : len - 1;
-    this.render();
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press `Down` key
-   */
-  onDownKey() {
-
-    var len = this.choices.realLength;
-    this.pointer = this.pointer < len - 1 ? this.pointer + 1 : 0;
-    this.render();
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press a number key
-   */
-  onNumberKey(input) {
-
-    if (input <= this.choices.realLength) {
-      this.pointer = input - 1;
-      this.toggleChoice(this.choices.getChoice(this.pointer));
-    }
-
-    this.render();
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press `Space` key
-   */
-  onSpaceKey() {
-
-    // When called no results
-    if (!this.choices.getChoice(this.pointer)) {
-      return;
-    }
-
-    this.toggleChoice(this.choices.getChoice(this.pointer));
-    this.render();
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press 'a' key
-   */
-  onAllKey() {
-
-    var shouldBeChecked = Boolean(
-      this.choices.find(function(choice) {
-        return choice.type !== 'separator' && !choice.checked;
-      })
-    );
-
-    this.choices.forEach(function(choice) {
-      if (choice.type !== 'separator') {
-        choice.checked = shouldBeChecked;
-      }
-    });
-
-    this.render();
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press `i` key
-   */
-  onInverseKey() {
-
-    this.choices.forEach(function(choice) {
-      if (choice.type !== 'separator') {
-        choice.checked = !choice.checked;
-      }
-    });
-
-    this.render();
-
-  }
-
-  /**
-   * A callback function for the event:
-   * When the user press any key
-   */
-  onKeypress() {
-
-    this.executeSource();
-    this.render();
-
-  }
-
-  /**
-   * Toggle (check/uncheck) a specific choice
-   *
-   * @param {Boolean} checked if not specified the status will be toggled
-   * @param {Object}  choice
-   */
-  toggleChoice(choice, checked) {
-
-    // Default value for checked
-    if (typeof checked === 'undefined') {
-      checked = !choice.checked;
-    }
-
-    // Remove the choice's value from the checked values
-    _.remove(this.value, _.isEqual.bind(null, choice.value));
-
-    // Remove the checkedChoices with the value of the current choice
-    _.remove(this.checkedChoices, function(checkedChoice) {
-      return _.isEqual(choice.value, checkedChoice.value);
-    });
-
-    choice.checked = false;
-
-    // Is the choice checked
-    if (checked) {
-      this.value.push(choice.value);
-      this.checkedChoices.push(choice);
-      choice.checked = true;
-    }
-
-  }
-
-  /**
-   * Get the checkbox figure (sign)
-   *
-   * @param  {Boolean} checked
-   * @return {String}
-   */
-  getCheckboxFigure(checked) {
-
-    return checked ? chalk.green(figures.radioOn) : figures.radioOff;
-
-  }
-
-  /**
-   * Render the checkbox choices
-   *
-   * @param  {Array}  choices
-   * @param  {Number} pointer the position of the pointer
-   * @return {String} rendered content
-   */
-  renderChoices(choices, pointer) {
-
-    var self = this;
-    var output = '';
-    var separatorOffset = 0;
-
-    // Foreach choice
-    choices.forEach(function(choice, index) {
-
-      // Is a separator
-      if (choice.type === 'separator') {
-
-        separatorOffset++;
-        output += ' ' + choice + '\n';
-        return;
-
-      }
-
-      // Is the choice disabled
-      if (choice.disabled) {
-
-        separatorOffset++;
-        output += ' - ' + choice.name;
-        output += ' (' + (_.isString(choice.disabled) ? choice.disabled : 'Disabled') + ')';
-        output += '\n';
-        return;
-
-      }
-
-      // Is the current choice is the selected choice
-      if (index - separatorOffset === pointer) {
-
-        output += chalk.cyan(figures.pointer);
-        output += self.getCheckboxFigure(choice.checked) + ' ';
-        output += self.opt.highlight ? chalk.gray(choice.name) : choice.name;
-
-      } else {
-
-        output += ' ' + self.getCheckboxFigure(choice.checked) + ' ' + choice.name;
-
-      }
-
-      output += '\n';
-
-
-    });
-
-    return output.replace(/\n$/, '');
-
-  }
-
+function isSelectable(item) {
+  return item && !Separator.isSeparator(item) && !item.disabled;
 }
 
-module.exports = CheckboxPlusPrompt;
+function isChecked(item) {
+  return isSelectable(item) && item.checked;
+}
+
+function toggle(item) {
+  return isSelectable(item) ? { ...item, checked: !item.checked } : item;
+}
+
+function check(checked) {
+  return function (item) {
+    return isSelectable(item) ? { ...item, checked } : item;
+  };
+}
+
+function normalizeChoices(choices) {
+  if (!Array.isArray(choices)) {
+    throw new Error('Choices must be an array');
+  }
+
+  return choices.map((choice, index) => {
+    if (Separator.isSeparator(choice)) {
+      return choice;
+    }
+    
+    if (typeof choice === 'string') {
+      return {
+        value: choice,
+        name: choice,
+        short: choice,
+        checkedName: choice,
+        disabled: false,
+        checked: false,
+      };
+    }
+    
+    if (typeof choice !== 'object' || choice === null) {
+      throw new Error(`Invalid choice at index ${index}: must be string, object, or separator`);
+    }
+    
+    if (choice.value === undefined || choice.value === null) {
+      throw new Error(`Choice at index ${index} must have a value property`);
+    }
+    
+    const name = choice.name ?? String(choice.value);
+    const normalizedChoice = {
+      value: choice.value,
+      name,
+      short: choice.short ?? name,
+      checkedName: choice.checkedName ?? name,
+      disabled: Boolean(choice.disabled),
+      checked: Boolean(choice.checked),
+    };
+    
+    if (choice.description) {
+      normalizedChoice.description = String(choice.description);
+    }
+    
+    return normalizedChoice;
+  });
+}
+
+function mergeWithExistingState(newItems, selectedItemsMap) {
+  // Merge new items with global selected state
+  return newItems.map(newItem => {
+    if (Separator.isSeparator(newItem)) {
+      return newItem;
+    }
+    
+    if (isSelectable(newItem)) {
+      // Check if this item is in our global selected state
+      const isSelected = selectedItemsMap.has(newItem.value);
+      return { ...newItem, checked: isSelected };
+    }
+    
+    return newItem;
+  });
+}
+
+/**
+ * Checkbox Plus Prompt for @inquirer/prompts
+ * 
+ * A modern checkbox prompt with search/filter capabilities, highlighting,
+ * and improved UX for the latest Inquirer.js ecosystem.
+ * 
+ * @param {Object} config - Configuration object
+ * @param {string} config.message - The question to display
+ * @param {Function} config.source - Async function that returns choices based on search input
+ * @param {boolean} [config.searchable=false] - Whether to enable search/filtering
+ * @param {boolean} [config.highlight=false] - Whether to highlight the currently selected choice
+ * @param {Array} [config.default=[]] - Default selected values
+ * @param {Function} [config.validate] - Validation function for selected values
+ * @param {number} [config.pageSize=7] - Number of choices to show per page
+ * @param {boolean} [config.loop=true] - Whether to loop through choices when navigating
+ * @param {boolean} [config.required=false] - Whether at least one choice must be selected
+ * @param {string|false} [config.instructions] - Custom instructions to display
+ * @param {Object} [config.theme] - Custom theme overrides
+ * @param {boolean} [config.enableErrorLogging=true] - Whether to enable error logging
+ * @param {Object} [config.answers] - Previous answers in the prompt chain
+ * @param {Function} done - Callback function to call when prompt is complete
+ * @returns {void}
+ * 
+ * @example
+ * ```js
+ * import checkboxPlus from 'inquirer-checkbox-plus-plus';
+ * 
+ * const answers = await checkboxPlus({
+ *   message: 'Select colors',
+ *   searchable: true,
+ *   source: async (answers, input) => {
+ *     // Return filtered choices based on input
+ *     return filteredChoices;
+ *   }
+ * });
+ * ```
+ */
+const checkboxPlusPrompt = createPrompt((config, done) => {
+  // Input validation
+  if (!config) {
+    throw new ValidationError('[checkbox-plus prompt] Configuration is required');
+  }
+  
+  if (!config.source || typeof config.source !== 'function') {
+    throw new ValidationError('[checkbox-plus prompt] source function is required');
+  }
+
+  const {
+    instructions,
+    pageSize = DEFAULT_PAGE_SIZE,
+    loop = true,
+    required = false,
+    validate = () => true,
+    source,
+    searchable = false,
+    highlight = false,
+    default: defaultValues = [],
+  } = config;
+
+  // Validate default values
+  if (!Array.isArray(defaultValues)) {
+    throw new ValidationError('[checkbox-plus prompt] default values must be an array');
+  }
+
+  const theme = makeTheme(checkboxPlusTheme, config.theme);
+  const { keybindings } = theme;
+
+  const [status, setStatus] = useState('idle');
+  const [items, setItems] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setError] = useState();
+  const [selectedItems, setSelectedItems] = useState(new Map());
+
+  const prefix = usePrefix({ status, theme });
+  
+  // Create error handler
+  const handleError = createErrorHandler(setError, setLoading, config.enableErrorLogging !== false);
+
+  // Immediate search function
+  const performSearch = async (query) => {
+    if (!source) return;
+    
+    try {
+      setLoading(true);
+      setError(undefined);
+      
+      const choices = await source(config.answers || {}, query);
+      const normalizedChoices = normalizeChoices(choices);
+      const mergedItems = mergeWithExistingState(normalizedChoices, selectedItems);
+      
+      setItems(mergedItems);
+      setLoading(false);
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  // Initialize items from source - only run once on mount
+  useEffect(() => {
+    if (!source) return;
+    
+    const initializeItems = async () => {
+      try {
+        setLoading(true);
+        setError(undefined);
+        
+        const choices = await source(config.answers || {}, '');
+        const normalizedChoices = normalizeChoices(choices);
+        
+        // Apply default values and populate global selected state
+        const initialSelectedItems = new Map();
+        const itemsWithDefaults = normalizedChoices.map(choice => {
+          if (isSelectable(choice)) {
+            const isDefault = defaultValues.some(defaultVal => 
+              isEqual(choice.value, defaultVal) || 
+              (typeof defaultVal === 'object' && isEqual(choice.name, defaultVal.name))
+            );
+            const choiceWithDefault = { ...choice, checked: isDefault };
+            if (isDefault) {
+              initialSelectedItems.set(choice.value, choiceWithDefault);
+            }
+            return choiceWithDefault;
+          }
+          return choice;
+        });
+        
+        setSelectedItems(initialSelectedItems);
+        setItems(itemsWithDefaults);
+        setLoading(false);
+      } catch (error) {
+        handleError(error);
+      }
+    };
+    
+    initializeItems();
+  }, [defaultValues]);
+
+  const bounds = useMemo(() => {
+    const first = items.findIndex(isSelectable);
+    const last = items.findLastIndex(isSelectable);
+    if (first === -1) {
+      return { first: 0, last: 0 };
+    }
+    return { first, last };
+  }, [items]);
+
+  const [active, setActive] = useState(() => bounds.first);
+
+  useKeypress(async (key) => {
+    try {
+      // Handle special keys first (these should always work regardless of searchable mode)
+      if (isEnterKey(key)) {
+        const selection = Array.from(selectedItems.values());
+        
+        if (required && selectedItems.size === 0) {
+          setError('At least one choice must be selected');
+          return;
+        }
+        
+        try {
+          const isValid = await validate(selection.map(choice => choice.value));
+          if (isValid === true) {
+            setStatus('done');
+            done(selection.map((choice) => choice.value));
+          } else {
+            setError(isValid || 'You must select a valid value');
+          }
+        } catch (validationError) {
+          setError(validationError.message || 'Validation failed');
+        }
+        return;
+      }
+      
+      if (isUpKey(key, keybindings) || isDownKey(key, keybindings)) {
+        if (items.length === 0) return;
+        
+        if (loop ||
+            (isUpKey(key, keybindings) && active !== bounds.first) ||
+            (isDownKey(key, keybindings) && active !== bounds.last)) {
+          const offset = isUpKey(key, keybindings) ? -1 : 1;
+          let next = active;
+          do {
+            next = (next + offset + items.length) % items.length;
+          } while (next !== active && (next < 0 || next >= items.length || !isSelectable(items[next])));
+          
+          // Ensure next is within bounds before setting
+          if (next >= 0 && next < items.length) {
+            setActive(next);
+          }
+        }
+        return;
+      }
+      
+      // Handle space key for selection - ALWAYS first priority
+      const isSpace = isSpaceKey(key) || key.name === 'space' || key.name === ' ' || key.sequence === ' ';
+      if (isSpace) {
+        setError(undefined);
+        
+        const activeItem = items[active];
+        if (isSelectable(activeItem)) {
+          const toggledItem = toggle(activeItem);
+          const newSelectedItems = new Map(selectedItems);
+          
+          if (toggledItem.checked) {
+            newSelectedItems.set(activeItem.value, toggledItem);
+          } else {
+            newSelectedItems.delete(activeItem.value);
+          }
+          
+          setSelectedItems(newSelectedItems);
+          setItems(items.map((choice, i) => (i === active ? toggledItem : choice)));
+        }
+        return;
+      }
+      
+      // Handle searchable text input
+      if (searchable && key.name && key.name.length === 1 && !key.ctrl && !key.meta) {
+        if (!isSpace && validateSearchInput(key.name)) {
+          setError(undefined);
+          const newQuery = searchQuery + key.name;
+          setSearchQuery(newQuery);
+          performSearch(newQuery);
+          return;
+        }
+      }
+      
+      if (searchable && key.name === 'backspace') {
+        setError(undefined);
+        const newQuery = searchQuery.slice(0, -1);
+        setSearchQuery(newQuery);
+        performSearch(newQuery);
+        return;
+      }
+    } catch (error) {
+      handleError(error);
+    }
+  });
+
+  const baseMessage = theme.style.message(config.message, status);
+  const searchIndicator = searchable && searchQuery && searchQuery.length > 0 ? theme.style.searchHint(` [searching: "${searchQuery}"]`) : '';
+  const message = baseMessage + searchIndicator;
+
+  let description;
+  const page = usePagination({
+    items,
+    active,
+    renderItem({ item, isActive }) {
+      if (Separator.isSeparator(item)) {
+        return ` ${item.separator}`;
+      }
+      if (item.disabled) {
+        const disabledLabel = typeof item.disabled === 'string' ? item.disabled : '(disabled)';
+        const checkbox = theme.icon.disabled;
+        const name = item.checked ? item.checkedName : item.name;
+        const cursor = isActive ? theme.icon.cursor : ' ';
+        const text = `${name} ${disabledLabel}`;
+        return `${cursor}${checkbox} ${isActive ? theme.style.activeItem(text) : theme.style.disabledChoice(text)}`;
+      }
+      if (isActive) {
+        description = item.description;
+      }
+      const checkbox = item.checked ? theme.icon.checked : theme.icon.unchecked;
+      const name = item.checked ? item.checkedName : item.name;
+      const cursor = isActive ? theme.icon.cursor : ' ';
+      const text = `${checkbox} ${name}`;
+      return isActive ? theme.style.activeItem(`${cursor}${text}`) : `${cursor}${text}`;
+    },
+    pageSize,
+    loop,
+  });
+
+  if (status === 'done') {
+    const selection = Array.from(selectedItems.values());
+    const answer = theme.style.answer(theme.style.renderSelectedChoices(selection, items));
+    return [prefix, message, answer].filter(Boolean).join(' ');
+  }
+
+  let helpLine;
+  if (theme.helpMode !== 'never' && instructions !== false) {
+    if (typeof instructions === 'string') {
+      helpLine = instructions;
+    } else {
+      // Always show navigation hints, add search info when searching
+      const keys = [
+        ['↑↓', 'navigate'],
+        ['space', 'de/select'],
+      ];
+      if (searchable) {
+        keys.push(['type', 'search']);
+      }
+      const selectedCount = selectedItems.size;
+      if (selectedCount > 0) {
+        keys.push([`${selectedCount} selected`, '']);
+      }
+      keys.push(['⏎', 'submit']);
+      helpLine = theme.style.keysHelpTip(keys);
+    }
+  }
+
+  const lines = [
+    [prefix, message].filter(Boolean).join(' '),
+    loading && searchable && searchQuery ? theme.style.searchHint(`Searching for "${searchQuery}"  | • ⌫ backspace`) : (loading ? theme.style.searching('Searching...') : ''),
+    errorMsg ? theme.style.error(errorMsg) : '',
+    !loading && items.length === 0 ? theme.style.noResults('No results found • ⌫ backspace') : '',
+    page,
+    ' ',
+    description ? theme.style.description(description) : '',
+    helpLine,
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .trimEnd();
+
+  return `${lines}${cursorHide}`;
+});
+
+export default checkboxPlusPrompt;
+export { Separator } from '@inquirer/core';

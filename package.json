@@ -1,11 +1,21 @@
 {
-  "name": "inquirer-checkbox-plus-prompt",
-  "version": "1.4.2",
-  "description": "Checkbox with autocomplete and other additions for Inquirer",
-  "main": "index.js",
+  "name": "inquirer-checkbox-plus-plus",
+  "version": "1.0.0",
+  "description": "Checkbox with autocomplete and other additions for Inquirer (maintained fork)",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/faressoft/inquirer-checkbox-plus-prompt.git"
+    "url": "https://github.com/behnamazimi/inquirer-checkbox-plus-plus.git"
   },
   "keywords": [
     "inquirer",
@@ -23,21 +33,39 @@
     "stdin",
     "cli",
     "tty",
-    "menu"
+    "menu",
+    "esm",
+    "cjs",
+    "dual-package",
+    "inquirer-checkbox-plus-prompt-fork",
+    "maintained-fork"
   ],
-  "author": "Mohammad Fares <faressoft.com@gmail.com>",
+  "author": "Mohammad Fares <faressoft.com@gmail.com>, Behnam Azimi <@behnamazimi> (fork maintainer)",
   "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build"
+  },
   "dependencies": {
-    "chalk": "4.1.2",
-    "cli-cursor": "^3.1.0",
-    "figures": "^3.0.0",
-    "lodash": "^4.17.5",
-    "rxjs": "^6.6.7"
+    "@inquirer/core": "^10.3.0",
+    "@inquirer/figures": "^1.0.14",
+    "yoctocolors-cjs": "^2.1.3",
+    "lodash": "^4.17.21"
   },
   "devDependencies": {
-    "fuzzy": "^0.1.3"
+    "fuzzy": "^0.1.3",
+    "rollup": "^4.0.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "rollup-plugin-copy": "^3.5.0"
   },
-  "peerDependencies": {
-    "inquirer": "< 9.x"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
