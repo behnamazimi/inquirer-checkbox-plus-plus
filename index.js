@@ -30,7 +30,6 @@ const { isEqual } = pkg;
 
 // Constants
 const DEFAULT_PAGE_SIZE = 7;
-const MAX_SEARCH_LENGTH = 100;
 
 // Theme configuration
 const checkboxPlusTheme = {
@@ -59,12 +58,6 @@ const checkboxPlusTheme = {
 };
 
 // Utility functions
-const validateSearchInput = (input) => {
-  if (typeof input !== 'string') return false;
-  if (input.length > MAX_SEARCH_LENGTH) return false;
-  return /^[A-Za-z0-9.\-_]*$/.test(input);
-};
-
 const createErrorHandler = (setError, setLoading, enableLogging = true) => (error) => {
   const message = error?.message || 'An unexpected error occurred';
   setError(message);
@@ -78,18 +71,8 @@ function isSelectable(item) {
   return item && !Separator.isSeparator(item) && !item.disabled;
 }
 
-function isChecked(item) {
-  return isSelectable(item) && item.checked;
-}
-
 function toggle(item) {
   return isSelectable(item) ? { ...item, checked: !item.checked } : item;
-}
-
-function check(checked) {
-  return function (item) {
-    return isSelectable(item) ? { ...item, checked } : item;
-  };
 }
 
 function normalizeChoices(choices) {
@@ -374,7 +357,7 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
       
       // Handle searchable text input
       if (searchable && key.name && key.name.length === 1 && !key.ctrl && !key.meta) {
-        if (!isSpace && validateSearchInput(key.name)) {
+        if (!isSpace) {
           setError(undefined);
           const newQuery = searchQuery + key.name;
           setSearchQuery(newQuery);
