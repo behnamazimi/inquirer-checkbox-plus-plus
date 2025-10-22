@@ -292,7 +292,7 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
     };
     
     initializeItems();
-  }, [defaultValues]);
+  }, []);
 
   const bounds = useMemo(() => {
     const first = items.findIndex(isSelectable);
