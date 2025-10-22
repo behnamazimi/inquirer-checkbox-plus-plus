@@ -8,7 +8,7 @@ export default {
     '@inquirer/core',
     '@inquirer/ansi', 
     '@inquirer/figures',
-    'yoctocolors-cjs',
+    'picocolors',
     'lodash'
   ],
   output: [

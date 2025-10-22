@@ -23,7 +23,7 @@ import {
   Separator,
 } from '@inquirer/core';
 import { cursorHide } from '@inquirer/ansi';
-import colors from 'yoctocolors-cjs';
+import colors from 'picocolors';
 import figures from '@inquirer/figures';
 import pkg from 'lodash';
 const { isEqual } = pkg;
