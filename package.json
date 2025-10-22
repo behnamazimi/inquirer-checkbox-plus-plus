@@ -1,6 +1,6 @@
 {
   "name": "inquirer-checkbox-plus-plus",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Checkbox with autocomplete and other additions for Inquirer (maintained fork)",
   "type": "module",
   "main": "./dist/index.cjs",
