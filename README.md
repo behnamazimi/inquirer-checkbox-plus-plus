@@ -154,15 +154,9 @@ const answers = await checkboxPlus({
 console.log(answers);
 ```
 
-## Keyboard Shortcuts
+### Customizing Theme and Style
 
-- **↑/↓**: Navigate through choices
-- **Space**: Toggle selection
-- **Enter**: Submit selection
-- **Type**: When searchable is enabled, type to filter (only A-Z, a-z, 0-9, ., -, _ allowed)
-- **Backspace**: When searchable is enabled, edit search query
-
-**Note**: Space key works for selection even when searchable mode is enabled. Search input only accepts alphanumeric characters, dots, dashes, and underscores.
+```
 const answers = await inquirer.prompt([{
   type: 'checkbox-plus',
   name: 'colors',
@@ -181,6 +175,16 @@ const answers = await inquirer.prompt([{
   }
 }]);
 ```
+
+## Keyboard Shortcuts
+
+- **↑/↓**: Navigate through choices
+- **Space**: Toggle selection
+- **Enter**: Submit selection
+- **Type**: When searchable is enabled, type to filter (only A-Z, a-z, 0-9, ., -, _ allowed)
+- **Backspace**: When searchable is enabled, edit search query
+
+**Note**: Space key works for selection even when searchable mode is enabled. Search input only accepts alphanumeric characters, dots, dashes, and underscores.
 
 ## Migration from `inquirer-checkbox-plus-prompt`
 
