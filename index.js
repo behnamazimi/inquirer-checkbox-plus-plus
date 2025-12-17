@@ -84,7 +84,7 @@ function normalizeChoices(choices) {
     if (Separator.isSeparator(choice)) {
       return choice;
     }
-    
+
     if (typeof choice === 'string') {
       return {
         value: choice,
@@ -95,15 +95,15 @@ function normalizeChoices(choices) {
         checked: false,
       };
     }
-    
+
     if (typeof choice !== 'object' || choice === null) {
       throw new Error(`Invalid choice at index ${index}: must be string, object, or separator`);
     }
-    
+
     if (choice.value === undefined || choice.value === null) {
       throw new Error(`Choice at index ${index} must have a value property`);
     }
-    
+
     const name = choice.name ?? String(choice.value);
     const normalizedChoice = {
       value: choice.value,
@@ -113,11 +113,11 @@ function normalizeChoices(choices) {
       disabled: Boolean(choice.disabled),
       checked: Boolean(choice.checked),
     };
-    
+
     if (choice.description) {
       normalizedChoice.description = String(choice.description);
     }
-    
+
     return normalizedChoice;
   });
 }
@@ -128,23 +128,23 @@ function mergeWithExistingState(newItems, selectedItemsMap) {
     if (Separator.isSeparator(newItem)) {
       return newItem;
     }
-    
+
     if (isSelectable(newItem)) {
       // Check if this item is in our global selected state
       const isSelected = selectedItemsMap.has(newItem.value);
       return { ...newItem, checked: isSelected };
     }
-    
+
     return newItem;
   });
 }
 
 /**
  * Checkbox Plus Prompt for @inquirer/prompts
- * 
+ *
  * A modern checkbox prompt with search/filter capabilities, highlighting,
  * and improved UX for the latest Inquirer.js ecosystem.
- * 
+ *
  * @param {Object} config - Configuration object
  * @param {string} config.message - The question to display
  * @param {Function} config.source - Async function that returns choices based on search input
@@ -161,11 +161,11 @@ function mergeWithExistingState(newItems, selectedItemsMap) {
  * @param {Object} [config.answers] - Previous answers in the prompt chain
  * @param {Function} done - Callback function to call when prompt is complete
  * @returns {void}
- * 
+ *
  * @example
  * ```js
  * import checkboxPlus from 'inquirer-checkbox-plus-plus';
- * 
+ *
  * const answers = await checkboxPlus({
  *   message: 'Select colors',
  *   searchable: true,
@@ -181,7 +181,7 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
   if (!config) {
     throw new ValidationError('[checkbox-plus prompt] Configuration is required');
   }
-  
+
   if (!config.source || typeof config.source !== 'function') {
     throw new ValidationError('[checkbox-plus prompt] source function is required');
   }
@@ -214,22 +214,22 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
   const [selectedItems, setSelectedItems] = useState(new Map());
 
   const prefix = usePrefix({ status, theme });
-  
+
   // Create error handler
   const handleError = createErrorHandler(setError, setLoading, config.enableErrorLogging !== false);
 
   // Immediate search function
   const performSearch = async (query) => {
     if (!source) return;
-    
+
     try {
       setLoading(true);
       setError(undefined);
-      
+
       const choices = await source(config.answers || {}, query);
       const normalizedChoices = normalizeChoices(choices);
       const mergedItems = mergeWithExistingState(normalizedChoices, selectedItems);
-      
+
       setItems(mergedItems);
       setLoading(false);
     } catch (error) {
@@ -240,21 +240,21 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
   // Initialize items from source - only run once on mount
   useEffect(() => {
     if (!source) return;
-    
+
     const initializeItems = async () => {
       try {
         setLoading(true);
         setError(undefined);
-        
+
         const choices = await source(config.answers || {}, '');
         const normalizedChoices = normalizeChoices(choices);
-        
+
         // Apply default values and populate global selected state
         const initialSelectedItems = new Map();
         const itemsWithDefaults = normalizedChoices.map(choice => {
           if (isSelectable(choice)) {
-            const isDefault = defaultValues.some(defaultVal => 
-              isEqual(choice.value, defaultVal) || 
+            const isDefault = defaultValues.some(defaultVal =>
+              isEqual(choice.value, defaultVal) ||
               (typeof defaultVal === 'object' && isEqual(choice.name, defaultVal.name))
             );
             const choiceWithDefault = { ...choice, checked: isDefault };
@@ -265,7 +265,7 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
           }
           return choice;
         });
-        
+
         setSelectedItems(initialSelectedItems);
         setItems(itemsWithDefaults);
         setLoading(false);
@@ -273,7 +273,7 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
         handleError(error);
       }
     };
-    
+
     initializeItems();
   }, []);
 
@@ -293,12 +293,12 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
       // Handle special keys first (these should always work regardless of searchable mode)
       if (isEnterKey(key)) {
         const selection = Array.from(selectedItems.values());
-        
+
         if (required && selectedItems.size === 0) {
           setError('At least one choice must be selected');
           return;
         }
-        
+
         try {
           const isValid = await validate(selection.map(choice => choice.value));
           if (isValid === true) {
@@ -312,10 +312,10 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
         }
         return;
       }
-      
+
       if (isUpKey(key, keybindings) || isDownKey(key, keybindings)) {
         if (items.length === 0) return;
-        
+
         if (loop ||
             (isUpKey(key, keybindings) && active !== bounds.first) ||
             (isDownKey(key, keybindings) && active !== bounds.last)) {
@@ -324,7 +324,7 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
           do {
             next = (next + offset + items.length) % items.length;
           } while (next !== active && (next < 0 || next >= items.length || !isSelectable(items[next])));
-          
+
           // Ensure next is within bounds before setting
           if (next >= 0 && next < items.length) {
             setActive(next);
@@ -332,41 +332,42 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
         }
         return;
       }
-      
+
+      const name = key.name ?? key.sequence;
       // Handle space key for selection - ALWAYS first priority
-      const isSpace = isSpaceKey(key) || key.name === 'space' || key.name === ' ' || key.sequence === ' ';
+      const isSpace = isSpaceKey(key) || name === 'space' || name === ' ';
       if (isSpace) {
         setError(undefined);
-        
+
         const activeItem = items[active];
         if (isSelectable(activeItem)) {
           const toggledItem = toggle(activeItem);
           const newSelectedItems = new Map(selectedItems);
-          
+
           if (toggledItem.checked) {
             newSelectedItems.set(activeItem.value, toggledItem);
           } else {
             newSelectedItems.delete(activeItem.value);
           }
-          
+
           setSelectedItems(newSelectedItems);
           setItems(items.map((choice, i) => (i === active ? toggledItem : choice)));
         }
         return;
       }
-      
+
       // Handle searchable text input
-      if (searchable && key.name && key.name.length === 1 && !key.ctrl && !key.meta) {
+      if (searchable && name && name.length === 1 && !key.ctrl && !key.meta) {
         if (!isSpace) {
           setError(undefined);
-          const newQuery = searchQuery + key.name;
+          const newQuery = searchQuery + name;
           setSearchQuery(newQuery);
           performSearch(newQuery);
           return;
         }
       }
-      
-      if (searchable && key.name === 'backspace') {
+
+      if (searchable && name === 'backspace') {
         setError(undefined);
         const newQuery = searchQuery.slice(0, -1);
         setSearchQuery(newQuery);
