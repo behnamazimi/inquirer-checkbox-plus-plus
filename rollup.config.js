@@ -22,7 +22,8 @@ export default {
       file: 'dist/index.cjs',
       format: 'cjs',
       exports: 'named',
-      sourcemap: true
+      sourcemap: true,
+      interop: 'auto'
     }
   ],
   plugins: [
