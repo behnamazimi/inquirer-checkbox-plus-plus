@@ -4,37 +4,29 @@ import copy from 'rollup-plugin-copy';
 
 export default {
   input: 'index.js',
-  external: [
-    '@inquirer/core',
-    '@inquirer/ansi', 
-    '@inquirer/figures',
-    'picocolors',
-    'lodash'
-  ],
+  external: ['@inquirer/core', '@inquirer/ansi', '@inquirer/figures', 'picocolors', 'lodash'],
   output: [
     {
       file: 'dist/index.js',
       format: 'es',
       sourcemap: true,
-      exports: 'named'
+      exports: 'named',
     },
     {
       file: 'dist/index.cjs',
       format: 'cjs',
       exports: 'named',
       sourcemap: true,
-      interop: 'auto'
-    }
+      interop: 'auto',
+    },
   ],
   plugins: [
     nodeResolve({
-      preferBuiltins: true
+      preferBuiltins: true,
     }),
     commonjs(),
     copy({
-      targets: [
-        { src: 'index.d.ts', dest: 'dist' }
-      ]
-    })
-  ]
+      targets: [{ src: 'index.d.ts', dest: 'dist' }],
+    }),
+  ],
 };
