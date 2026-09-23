@@ -50,7 +50,7 @@ const answers = await checkboxPlus({
   source: async (answers, input) => {
     // Your async source logic here
     return choices;
-  }
+  },
 });
 ```
 
@@ -64,7 +64,7 @@ const answers = await checkboxPlus({
   searchable: true,
   source: async (answers, input) => {
     return choices;
-  }
+  },
 });
 ```
 
@@ -96,14 +96,16 @@ Choices can be strings or objects:
 
 ```js
 // String format
-['red', 'green', 'blue']
+['red', 'green', 'blue'];
+```
 
+```js
 // Object format
 [
   { name: 'Red Color', value: 'red', short: 'red' },
   { name: 'Green Color', value: 'green', short: 'green', disabled: true },
-  { name: 'Blue Color', value: 'blue', short: 'blue', description: 'A cool color' }
-]
+  { name: 'Blue Color', value: 'blue', short: 'blue', description: 'A cool color' },
+];
 ```
 
 ## Example
@@ -117,7 +119,7 @@ const colors = [
   { name: 'The blue color', value: 'blue', short: 'blue', disabled: true },
   { name: 'The green color', value: 'green', short: 'green' },
   { name: 'The yellow color', value: 'yellow', short: 'yellow' },
-  { name: 'The black color', value: 'black', short: 'black' }
+  { name: 'The black color', value: 'black', short: 'black' },
 ];
 
 const answers = await checkboxPlus({
@@ -126,29 +128,29 @@ const answers = await checkboxPlus({
   highlight: true,
   searchable: true,
   default: ['yellow', 'red'],
-  validate: function(answer) {
+  validate: function (answer) {
     if (answer.length === 0) {
       return 'You must choose at least one color.';
     }
     return true;
   },
-  source: function(answersSoFar, input) {
+  source: function (answersSoFar, input) {
     input = input || '';
 
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       const fuzzyResult = fuzzy.filter(input, colors, {
-        extract: function(item) {
+        extract: function (item) {
           return item['name'];
-        }
+        },
       });
 
-      const data = fuzzyResult.map(function(element) {
+      const data = fuzzyResult.map(function (element) {
         return element.original;
       });
 
       resolve(data);
     });
-  }
+  },
 });
 
 console.log(answers);
@@ -219,10 +221,12 @@ The API is now much simpler - no need to register prompts:
 ```js
 // OLD (inquirer-checkbox-plus-prompt)
 inquirer.registerPrompt('checkbox-plus', checkboxPlus);
-const answers = await inquirer.prompt([{
-  type: 'checkbox-plus',
-  // ... config
-}]);
+const answers = await inquirer.prompt([
+  {
+    type: 'checkbox-plus',
+    // ... config
+  },
+]);
 
 // NEW (inquirer-checkbox-plus-plus)
 const answers = await checkboxPlus({

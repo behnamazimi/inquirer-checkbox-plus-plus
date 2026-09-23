@@ -41,11 +41,13 @@ const checkboxPlusTheme = {
   },
   style: {
     disabledChoice: (text) => colors.dim(text),
-    renderSelectedChoices: (selectedChoices) => selectedChoices.map((choice) => choice.short).join(', '),
+    renderSelectedChoices: (selectedChoices) =>
+      selectedChoices.map((choice) => choice.short).join(', '),
     description: (text) => colors.cyan(text),
-    keysHelpTip: (keys) => keys
-      .map(([key, action]) => `${colors.bold(key)} ${colors.dim(action)}`)
-      .join(colors.dim(' • ')),
+    keysHelpTip: (keys) =>
+      keys
+        .map(([key, action]) => `${colors.bold(key)} ${colors.dim(action)}`)
+        .join(colors.dim(' • ')),
     highlight: (text) => colors.gray(text),
     searching: (text) => colors.cyan(text),
     searchHint: (text) => colors.dim(colors.cyan(text)),
@@ -58,14 +60,16 @@ const checkboxPlusTheme = {
 };
 
 // Utility functions
-const createErrorHandler = (setError, setLoading, enableLogging = true) => (error) => {
-  const message = error?.message || 'An unexpected error occurred';
-  setError(message);
-  setLoading(false);
-  if (enableLogging) {
-    console.error('[checkbox-plus] Error:', error);
-  }
-};
+const createErrorHandler =
+  (setError, setLoading, enableLogging = true) =>
+  (error) => {
+    const message = error?.message || 'An unexpected error occurred';
+    setError(message);
+    setLoading(false);
+    if (enableLogging) {
+      console.error('[checkbox-plus] Error:', error);
+    }
+  };
 
 function isSelectable(item) {
   return item && !Separator.isSeparator(item) && !item.disabled;
@@ -124,7 +128,7 @@ function normalizeChoices(choices) {
 
 function mergeWithExistingState(newItems, selectedItemsMap) {
   // Merge new items with global selected state
-  return newItems.map(newItem => {
+  return newItems.map((newItem) => {
     if (Separator.isSeparator(newItem)) {
       return newItem;
     }
@@ -251,11 +255,12 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
 
         // Apply default values and populate global selected state
         const initialSelectedItems = new Map();
-        const itemsWithDefaults = normalizedChoices.map(choice => {
+        const itemsWithDefaults = normalizedChoices.map((choice) => {
           if (isSelectable(choice)) {
-            const isDefault = defaultValues.some(defaultVal =>
-              isEqual(choice.value, defaultVal) ||
-              (typeof defaultVal === 'object' && isEqual(choice.name, defaultVal.name))
+            const isDefault = defaultValues.some(
+              (defaultVal) =>
+                isEqual(choice.value, defaultVal) ||
+                (typeof defaultVal === 'object' && isEqual(choice.name, defaultVal.name)),
             );
             const choiceWithDefault = { ...choice, checked: isDefault };
             if (isDefault) {
@@ -300,7 +305,7 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
         }
 
         try {
-          const isValid = await validate(selection.map(choice => choice.value));
+          const isValid = await validate(selection.map((choice) => choice.value));
           if (isValid === true) {
             setStatus('done');
             done(selection.map((choice) => choice.value));
@@ -316,14 +321,19 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
       if (isUpKey(key, keybindings) || isDownKey(key, keybindings)) {
         if (items.length === 0) return;
 
-        if (loop ||
-            (isUpKey(key, keybindings) && active !== bounds.first) ||
-            (isDownKey(key, keybindings) && active !== bounds.last)) {
+        if (
+          loop ||
+          (isUpKey(key, keybindings) && active !== bounds.first) ||
+          (isDownKey(key, keybindings) && active !== bounds.last)
+        ) {
           const offset = isUpKey(key, keybindings) ? -1 : 1;
           let next = active;
           do {
             next = (next + offset + items.length) % items.length;
-          } while (next !== active && (next < 0 || next >= items.length || !isSelectable(items[next])));
+          } while (
+            next !== active &&
+            (next < 0 || next >= items.length || !isSelectable(items[next]))
+          );
 
           // Ensure next is within bounds before setting
           if (next >= 0 && next < items.length) {
@@ -380,7 +390,10 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
   });
 
   const baseMessage = theme.style.message(config.message, status);
-  const searchIndicator = searchable && searchQuery && searchQuery.length > 0 ? theme.style.searchHint(` [searching: "${searchQuery}"]`) : '';
+  const searchIndicator =
+    searchable && searchQuery && searchQuery.length > 0
+      ? theme.style.searchHint(` [searching: "${searchQuery}"]`)
+      : '';
   const message = baseMessage + searchIndicator;
 
   let description;
@@ -442,7 +455,11 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
 
   const lines = [
     [prefix, message].filter(Boolean).join(' '),
-    loading && searchable && searchQuery ? theme.style.searchHint(`Searching for "${searchQuery}"  | • ⌫ backspace`) : (loading ? theme.style.searching('Searching...') : ''),
+    loading && searchable && searchQuery
+      ? theme.style.searchHint(`Searching for "${searchQuery}"  | • ⌫ backspace`)
+      : loading
+        ? theme.style.searching('Searching...')
+        : '',
     errorMsg ? theme.style.error(errorMsg) : '',
     !loading && items.length === 0 ? theme.style.noResults('No results found • ⌫ backspace') : '',
     page,

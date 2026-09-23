@@ -1,6 +1,6 @@
 /**
  * Checkbox Plus Example
- * 
+ *
  * @author Mohammad Fares <faressoft.com@gmail.com>
  * @author Behnam (fork maintainer)
  */
@@ -27,29 +27,29 @@ try {
     highlight: true,
     searchable: true,
     default: ['yellow', 'red', { name: 'black' }],
-    validate: function(answer) {
+    validate: function (answer) {
       if (answer.length == 0) {
         return 'You must choose at least one color.';
       }
       return true;
     },
-    source: function(answersSoFar, input) {
+    source: function (answersSoFar, input) {
       input = input || '';
 
-      return new Promise(function(resolve) {
+      return new Promise(function (resolve) {
         const fuzzyResult = fuzzy.filter(input, colors, {
-          extract: function(item) {
+          extract: function (item) {
             return item['name'];
-          }
+          },
         });
 
-        const data = fuzzyResult.map(function(element) {
+        const data = fuzzyResult.map(function (element) {
           return element.original;
         });
 
         resolve(data);
       });
-    }
+    },
   });
 
   console.log('Selected colors:', answers);
