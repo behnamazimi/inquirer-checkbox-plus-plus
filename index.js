@@ -198,7 +198,6 @@ const checkboxPlusPrompt = createPrompt((config, done) => {
     validate = () => true,
     source,
     searchable = false,
-    highlight = false,
     default: defaultValues = [],
   } = config;
 
